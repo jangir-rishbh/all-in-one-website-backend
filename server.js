@@ -16,6 +16,20 @@ const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const app = express();
+
+// ✅ CORS (IMPORTANT)
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://ma-baba-cloth-store.vercel.app" // 👈 apna REAL frontend URL yahan daalo
+  ],
+  credentials: true
+}));
+
+// ✅ JSON parser
+app.use(express.json());
+
+// ✅ multer
 const upload = multer({ storage: multer.memoryStorage() });
 
 const ADMIN_STORE_PATH = path.join(__dirname, 'admin-store.json');
@@ -23,10 +37,10 @@ const ADMIN_STORE_PATH = path.join(__dirname, 'admin-store.json');
 function loadAdminStore() {
   try {
     if (!fs.existsSync(ADMIN_STORE_PATH)) {
-      return { 
-        featured: [], 
-        overrides: [], 
-        customProducts: [], 
+      return {
+        featured: [],
+        overrides: [],
+        customProducts: [],
         replies: [],
         websiteInfo: { name: 'Ma Baba Cloth Store', logoUrl: '' }
       };
@@ -41,10 +55,10 @@ function loadAdminStore() {
       websiteInfo: parsed.websiteInfo || { name: 'Ma Baba Cloth Store', logoUrl: '' }
     };
   } catch {
-    return { 
-      featured: [], 
-      overrides: [], 
-      customProducts: [], 
+    return {
+      featured: [],
+      overrides: [],
+      customProducts: [],
       replies: [],
       websiteInfo: { name: 'Ma Baba Cloth Store', logoUrl: '' }
     };
@@ -258,7 +272,7 @@ app.get("/", (req, res) => {
 app.post("/api/auth/check-email", async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     // Validate email
     if (!email) {
       return res.status(400).json({
@@ -266,19 +280,19 @@ app.post("/api/auth/check-email", async (req, res) => {
         message: "Email is required"
       });
     }
-    
+
     console.log(`Checking email: ${email}`);
-    
+
     // Check if email exists in Supabase
     const { data: users, error } = await supabase
       .from('users')
       .select('email, name, email_verified_at')
       .eq('email', email.toLowerCase())
       .single();
-    
+
     if (error) {
       console.error('Supabase error:', error);
-      
+
       // If no rows found, user doesn't exist
       if (error.code === 'PGRST116') {
         return res.json({
@@ -289,14 +303,14 @@ app.post("/api/auth/check-email", async (req, res) => {
           action: "signup"
         });
       }
-      
+
       // Other database errors
       return res.status(500).json({
         success: false,
         message: "Database error occurred"
       });
     }
-    
+
     if (users) {
       // User found
       res.json({
@@ -375,7 +389,7 @@ app.post("/api/auth/check-email", async (req, res) => {
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const { email, password, name, mobile, gender, state } = req.body;
-    
+
     // Validate required fields
     if (!email || !password || !name) {
       return res.status(400).json({
@@ -383,16 +397,16 @@ app.post("/api/auth/signup", async (req, res) => {
         message: "Email, password, and name are required"
       });
     }
-    
+
     console.log(`Signing up user: ${email}`);
-    
+
     // Check if email already exists
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('email')
       .eq('email', email.toLowerCase())
       .single();
-    
+
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('Supabase check error:', checkError);
       return res.status(500).json({
@@ -400,14 +414,14 @@ app.post("/api/auth/signup", async (req, res) => {
         message: "Database error occurred"
       });
     }
-    
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
         message: "Email already registered. Please login instead."
       });
     }
-    
+
     // Create new user
     const passwordHash = await hashPassword(password);
 
@@ -429,7 +443,7 @@ app.post("/api/auth/signup", async (req, res) => {
       ])
       .select('email, name, created_at')
       .single();
-    
+
     if (insertError) {
       console.error('Supabase insert error:', insertError);
       return res.status(500).json({
@@ -437,9 +451,9 @@ app.post("/api/auth/signup", async (req, res) => {
         message: "Failed to create user account"
       });
     }
-    
+
     console.log(`User created successfully: ${email}`);
-    
+
     res.status(201).json({
       success: true,
       message: "Account created successfully! Please check your email for verification.",
@@ -450,7 +464,7 @@ app.post("/api/auth/signup", async (req, res) => {
         created_at: newUser.created_at
       }
     });
-    
+
   } catch (error) {
     console.error("Signup error:", error);
     res.status(500).json({
@@ -491,29 +505,29 @@ app.post("/api/auth/signup", async (req, res) => {
 app.post("/api/auth/send-verification", async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({
         success: false,
         message: "Email is required"
       });
     }
-    
+
     console.log(`Sending verification email to: ${email}`);
-    
+
     // Generate OTP (6-digit)
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    
+
     // Calculate TTL in minutes for the email template
     const ttlMinutes = 10;
-    
+
     // Store OTP in database
     // For now, checking if there is a table for signup OTPs or just storing it memory/using login OTP logic
     // We should ideally use a proper table like `login_otps` or `signup_otps`.
     // Since we don't know the exact schema for signup OTPs let's see if we should store it in `password_reset_otps` or `login_otps` or what.
     // Wait, earlier code didn't store it in the DB at all!
-    
+
     if (isSmtpConfigured()) {
       try {
         await sendVerificationEmail(email, otp, ttlMinutes);
@@ -528,7 +542,7 @@ app.post("/api/auth/send-verification", async (req, res) => {
     } else {
       console.warn(`SMTP not configured; verification OTP for ${email}: ${otp} (dev only)`);
     }
-    
+
     const payload = {
       success: true,
       message: isSmtpConfigured()
@@ -539,7 +553,7 @@ app.post("/api/auth/send-verification", async (req, res) => {
       payload.otp = otp;
     }
     res.json(payload);
-    
+
   } catch (error) {
     console.error("Send verification error:", error);
     res.status(500).json({
@@ -586,26 +600,26 @@ app.post("/api/auth/send-verification", async (req, res) => {
 app.post("/api/auth/verify-email", async (req, res) => {
   try {
     const { email, otp } = req.body;
-    
+
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
         message: "Email and OTP are required"
       });
     }
-    
+
     console.log(`Verifying email: ${email} with OTP: ${otp}`);
-    
+
     // TODO: Verify OTP from database
     // For now, accept any 6-digit OTP for testing
     if (otp.length === 6 && /^\d{6}$/.test(otp)) {
-      
+
       // Update user as verified in Supabase
       const { error: updateError } = await supabase
         .from('users')
         .update({ email_verified_at: new Date().toISOString() })
         .eq('email', email.toLowerCase());
-      
+
       if (updateError) {
         console.error('Update verification error:', updateError);
         return res.status(500).json({
@@ -613,7 +627,7 @@ app.post("/api/auth/verify-email", async (req, res) => {
           message: "Failed to verify email"
         });
       }
-      
+
       res.json({
         success: true,
         verified: true,
@@ -625,7 +639,7 @@ app.post("/api/auth/verify-email", async (req, res) => {
         message: "Invalid verification code"
       });
     }
-    
+
   } catch (error) {
     console.error("Verify email error:", error);
     res.status(500).json({
@@ -1278,16 +1292,16 @@ app.post("/api/otp/send-otp", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password, loginType = 'password', otp } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({
         success: false,
         message: "Email is required"
       });
     }
-    
+
     console.log(`Login attempt: ${email} with ${loginType}`);
-    
+
     // Get user from Supabase (is_admin / role columns optional until migrations applied)
     let { data: user, error } = await supabase
       .from('users')
@@ -1340,21 +1354,21 @@ app.post("/api/auth/login", async (req, res) => {
         message: "Database error occurred"
       });
     }
-    
+
     if (!user) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password"
       });
     }
-    
+
     if (user.is_banned) {
       return res.status(403).json({
         success: false,
         message: "Account is banned. Please contact support."
       });
     }
-    
+
     // Check if email is verified
     if (!user.email_verified_at) {
       return res.status(403).json({
@@ -1363,7 +1377,7 @@ app.post("/api/auth/login", async (req, res) => {
         requiresVerification: true
       });
     }
-    
+
     // Handle different login types
     if (loginType === 'otp') {
       // OTP Login Flow
@@ -1373,15 +1387,15 @@ app.post("/api/auth/login", async (req, res) => {
           message: "OTP is required for OTP login"
         });
       }
-      
+
       // TODO: Verify OTP from database
       // For now, accept any 6-digit OTP for testing
       if (otp.length === 6 && /^\d{6}$/.test(otp)) {
-        
+
         const token = Buffer.from(`${user.email}:${Date.now()}:otp`).toString('base64');
-        
+
         console.log(`OTP Login successful: ${email}`);
-        
+
         res.json({
           success: true,
           message: "Login successful with OTP!",
@@ -1404,7 +1418,7 @@ app.post("/api/auth/login", async (req, res) => {
           message: "Invalid OTP"
         });
       }
-      
+
     } else {
       // Password Login Flow
       if (!password) {
@@ -1413,7 +1427,7 @@ app.post("/api/auth/login", async (req, res) => {
           message: "Password is required for password login"
         });
       }
-      
+
       // Check password (in production, use proper hashing)
       const validPassword = await isPasswordValid(password, user.password_hash);
       if (!validPassword) {
@@ -1422,12 +1436,12 @@ app.post("/api/auth/login", async (req, res) => {
           message: "Invalid email or password"
         });
       }
-      
+
       // Generate JWT token
       const token = Buffer.from(`${user.email}:${Date.now()}:password`).toString('base64');
-      
+
       console.log(`Password Login successful: ${email}`);
-      
+
       res.json({
         success: true,
         message: "Login successful!",
@@ -1445,7 +1459,7 @@ app.post("/api/auth/login", async (req, res) => {
         loginMethod: 'password'
       });
     }
-    
+
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
@@ -1580,14 +1594,14 @@ app.get("/api/auth/profile", async (req, res) => {
     try {
       decoded = Buffer.from(token, 'base64').toString('utf8');
       const [email, timestamp, loginMethod] = decoded.split(':');
-      
+
       if (!email || !timestamp) {
         return res.status(401).json({
           success: false,
           message: "Invalid token format"
         });
       }
-      
+
       // Check if token is expired (24 hours)
       const tokenAge = Date.now() - parseInt(timestamp);
       if (tokenAge > 24 * 60 * 60 * 1000) {
@@ -1596,7 +1610,7 @@ app.get("/api/auth/profile", async (req, res) => {
           message: "Token expired"
         });
       }
-      
+
       // Get user from Supabase
       let { data: user, error } = await supabase
         .from('users')
@@ -1622,16 +1636,16 @@ app.get("/api/auth/profile", async (req, res) => {
         user = fb.data ? { ...fb.data, is_admin: false, role: 'user' } : null;
         error = fb.error;
       }
-      
+
       if (error || !user) {
         return res.status(401).json({
           success: false,
           message: "User not found"
         });
       }
-      
+
       console.log(`Profile accessed: ${email}`);
-      
+
       res.json({
         success: true,
         user: {
@@ -1647,14 +1661,14 @@ app.get("/api/auth/profile", async (req, res) => {
           loginMethod: loginMethod || 'unknown'
         }
       });
-      
+
     } catch (decodeError) {
       return res.status(401).json({
         success: false,
         message: "Invalid token"
       });
     }
-    
+
   } catch (error) {
     console.error("Profile error:", error);
     res.status(500).json({
@@ -1689,22 +1703,22 @@ app.get("/api/auth/dashboard", async (req, res) => {
         message: "Authorization token required"
       });
     }
-    
+
     const token = authHeader.substring(7);
-    
+
     // Decode token
     let decoded;
     try {
       decoded = Buffer.from(token, 'base64').toString('utf8');
       const [email, timestamp] = decoded.split(':');
-      
+
       if (!email || !timestamp) {
         return res.status(401).json({
           success: false,
           message: "Invalid token"
         });
       }
-      
+
       // Check token expiry
       const tokenAge = Date.now() - parseInt(timestamp);
       if (tokenAge > 24 * 60 * 60 * 1000) {
@@ -1713,21 +1727,21 @@ app.get("/api/auth/dashboard", async (req, res) => {
           message: "Token expired"
         });
       }
-      
+
       // Get user data
       const { data: user, error } = await supabase
         .from('users')
         .select('email, name, created_at, email_verified_at')
         .eq('email', email.toLowerCase())
         .single();
-      
+
       if (error || !user) {
         return res.status(401).json({
           success: false,
           message: "User not found"
         });
       }
-      
+
       // Mock dashboard data
       const dashboardData = {
         user: {
@@ -1762,21 +1776,21 @@ app.get("/api/auth/dashboard", async (req, res) => {
           }
         ]
       };
-      
+
       console.log(`Dashboard accessed: ${email}`);
-      
+
       res.json({
         success: true,
         data: dashboardData
       });
-      
+
     } catch (decodeError) {
       return res.status(401).json({
         success: false,
         message: "Invalid token"
       });
     }
-    
+
   } catch (error) {
     console.error("Dashboard error:", error);
     res.status(500).json({
@@ -1834,53 +1848,53 @@ app.put("/api/auth/update-profile", async (req, res) => {
         message: "Authorization token required"
       });
     }
-    
+
     const token = authHeader.substring(7);
-    
+
     // Decode token
     let decoded;
     try {
       decoded = Buffer.from(token, 'base64').toString('utf8');
       const [email] = decoded.split(':');
-      
+
       if (!email) {
         return res.status(401).json({
           success: false,
           message: "Invalid token"
         });
       }
-      
+
       // Get user from Supabase
       const { data: user, error } = await supabase
         .from('users')
         .select('email, name, mobile, gender, state, created_at')
         .eq('email', email.toLowerCase())
         .single();
-      
+
       if (error || !user) {
         return res.status(401).json({
           success: false,
           message: "User not found"
         });
       }
-      
+
       // Extract update data
       const { name, mobile, gender, state } = req.body;
-      
+
       // Build update object
       const updateData = {};
       if (name !== undefined) updateData.name = name;
       if (mobile !== undefined) updateData.mobile = mobile;
       if (gender !== undefined) updateData.gender = gender;
       if (state !== undefined) updateData.state = state;
-      
+
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({
           success: false,
           message: "No fields to update"
         });
       }
-      
+
       // Update user in Supabase
       const { data: updatedUser, error: updateError } = await supabase
         .from('users')
@@ -1888,7 +1902,7 @@ app.put("/api/auth/update-profile", async (req, res) => {
         .eq('email', email.toLowerCase())
         .select('email, name, mobile, gender, state, created_at')
         .single();
-      
+
       if (updateError) {
         console.error('Update error:', updateError);
         return res.status(500).json({
@@ -1896,9 +1910,9 @@ app.put("/api/auth/update-profile", async (req, res) => {
           message: "Failed to update profile"
         });
       }
-      
+
       console.log(`Profile updated for: ${email}`);
-      
+
       res.json({
         success: true,
         message: "Profile updated successfully!",
@@ -1911,14 +1925,14 @@ app.put("/api/auth/update-profile", async (req, res) => {
           created_at: updatedUser.created_at
         }
       });
-      
+
     } catch (decodeError) {
       return res.status(401).json({
         success: false,
         message: "Invalid token"
       });
     }
-    
+
   } catch (error) {
     console.error("Update profile error:", error);
     res.status(500).json({
@@ -1948,41 +1962,41 @@ app.post("/api/auth/logout", async (req, res) => {
         message: "No active session"
       });
     }
-    
+
     const token = authHeader.substring(7);
-    
+
     // Decode token to get email
     let decoded;
     try {
       decoded = Buffer.from(token, 'base64').toString('utf8');
       const [email] = decoded.split(':');
-      
+
       if (!email) {
         return res.status(401).json({
           success: false,
           message: "Invalid token"
         });
       }
-      
+
       console.log(`User logged out: ${email}`);
-      
+
       // In a real app, you would:
       // 1. Add token to blacklist
       // 2. Remove active session from database
       // 3. Clear cookies if using cookie-based auth
-      
+
       res.json({
         success: true,
         message: "Logout successful"
       });
-      
+
     } catch (decodeError) {
       return res.status(401).json({
         success: false,
         message: "Invalid token"
       });
     }
-    
+
   } catch (error) {
     console.error("Logout error:", error);
     res.status(500).json({
@@ -2017,7 +2031,7 @@ app.get("/api/users", async (req, res) => {
     const { data: users, error } = await supabase
       .from('users')
       .select('email, name, email_verified_at, created_at');
-    
+
     if (error) {
       console.error('Supabase error:', error);
       return res.status(500).json({
@@ -2025,12 +2039,12 @@ app.get("/api/users", async (req, res) => {
         message: "Failed to fetch users"
       });
     }
-    
-    res.json({ 
+
+    res.json({
       success: true,
-      users: users.map(u => ({ 
-        email: u.email, 
-        name: u.name, 
+      users: users.map(u => ({
+        email: u.email,
+        name: u.name,
         verified: !!u.email_verified_at,
         created_at: u.created_at
       }))
@@ -2938,11 +2952,11 @@ app.post("/api/admin/website-info/upload-logo", adminOnly, upload.single('file')
 
     const { error: upsertErr } = await supabase
       .from('website_settings')
-      .upsert({ 
-        id: 1, 
-        name: current?.name || 'Ma Baba Cloth Store', 
-        logo_url: image, 
-        updated_at: new Date().toISOString() 
+      .upsert({
+        id: 1,
+        name: current?.name || 'Ma Baba Cloth Store',
+        logo_url: image,
+        updated_at: new Date().toISOString()
       });
 
     if (upsertErr) {
