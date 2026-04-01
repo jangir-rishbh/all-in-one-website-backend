@@ -436,7 +436,7 @@ app.post("/api/auth/signup", async (req, res) => {
           gender: gender || 'other',
           state: state || '',
           is_banned: false,
-          email_verified_at: null,
+          email_verified_at: new Date().toISOString(),
           two_factor_enabled: true,
           created_at: new Date().toISOString()
         }
