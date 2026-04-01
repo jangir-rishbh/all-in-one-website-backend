@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-/** Gmail app passwords may include spaces in .env — strip for auth. */
+/** Clean SMTP password */
 function smtpPass() {
   const raw = process.env.SMTP_PASS || "";
   return raw.replace(/\s/g, "");
@@ -9,143 +9,91 @@ function smtpPass() {
 function isSmtpConfigured() {
   return Boolean(
     process.env.SMTP_HOST?.trim() &&
-      process.env.SMTP_USER?.trim() &&
-      smtpPass()
+    process.env.SMTP_USER?.trim() &&
+    smtpPass()
+  );
+}
+
+/** Create transporter (reuse) */
+function createTransporter() {
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST.trim(),
+    port: Number.isNaN(port) ? 587 : port,
+    secure: port === 465,
+    requireTLS: port !== 465,
+    auth: {
+      user: process.env.SMTP_USER.trim(),
+      pass: smtpPass(),
+    },
+    tls: { rejectUnauthorized: false },
+  });
+}
+
+/** Get FROM email safely */
+function getFromEmail() {
+  if (!process.env.EMAIL_FROM) {
+    throw new Error("EMAIL_FROM is not set in environment variables");
+  }
+  return process.env.EMAIL_FROM.trim();
+}
+
+/**
+ * Send Email (common function)
+ */
+async function sendEmail(to, subject, text, html) {
+  if (!isSmtpConfigured()) {
+    throw new Error("SMTP is not configured");
+  }
+
+  const transporter = createTransporter();
+  const from = getFromEmail();
+  const appName = process.env.APP_NAME || "Clothing Shop";
+
+  await transporter.sendMail({
+    from: `"${appName}" <${from}>`,
+    to,
+    subject,
+    text,
+    html,
+  });
+}
+
+/**
+ * Password Reset OTP
+ */
+async function sendPasswordResetOtpEmail(to, otp, ttlMinutes = 10) {
+  await sendEmail(
+    to,
+    `Clothing Shop — Password reset code`,
+    `Your password reset code is: ${otp}\n\nExpires in ${ttlMinutes} minutes.`,
+    `<h2>Password Reset</h2><p>Your OTP: <b>${otp}</b></p>`
   );
 }
 
 /**
- * @param {string} to
- * @param {string} otp
- * @param {number} [ttlMinutes=10]
- */
-async function sendPasswordResetOtpEmail(to, otp, ttlMinutes = 10) {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP is not configured (SMTP_HOST, SMTP_USER, SMTP_PASS)");
-  }
-
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST.trim(),
-    port: Number.isNaN(port) ? 587 : port,
-    secure: port === 465,
-    requireTLS: port !== 465,
-    auth: {
-      user: process.env.SMTP_USER.trim(),
-      pass: smtpPass(),
-    },
-    tls: { rejectUnauthorized: false },
-  });
-
-  const from =
-    process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER.trim();
-  const appName = process.env.APP_NAME || "Clothing Shop";
-
-  await transporter.sendMail({
-    from: `"${appName}" <${from}>`,
-    to,
-    subject: `${appName} — Password reset code`,
-    text: `Your password reset code is: ${otp}\n\nIt expires in ${ttlMinutes} minutes.\nIf you did not request this, ignore this email.`,
-    html: `
-      <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto;">
-        <h2 style="color: #1e1b4b;">Password reset</h2>
-        <p>Use this code to set a new password:</p>
-        <p style="font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #4f46e5;">${otp}</p>
-        <p style="color: #64748b; font-size: 14px;">This code expires in ${ttlMinutes} minutes.</p>
-        <p style="color: #64748b; font-size: 14px;">If you did not request a reset, you can ignore this email.</p>
-      </div>
-    `,
-  });
-}
-
-/**
- * Login OTP email (passwordless login).
- * @param {string} to
- * @param {string} otp
- * @param {number} [ttlMinutes=10]
+ * Login OTP
  */
 async function sendLoginOtpEmail(to, otp, ttlMinutes = 10) {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP is not configured (SMTP_HOST, SMTP_USER, SMTP_PASS)");
-  }
-
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST.trim(),
-    port: Number.isNaN(port) ? 587 : port,
-    secure: port === 465,
-    requireTLS: port !== 465,
-    auth: {
-      user: process.env.SMTP_USER.trim(),
-      pass: smtpPass(),
-    },
-    tls: { rejectUnauthorized: false },
-  });
-
-  const from =
-    process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER.trim();
-  const appName = process.env.APP_NAME || "Clothing Shop";
-
-  await transporter.sendMail({
-    from: `"${appName}" <${from}>`,
+  await sendEmail(
     to,
-    subject: `${appName} — Login verification code`,
-    text: `Your login code is: ${otp}\n\nIt expires in ${ttlMinutes} minutes.\nIf you did not try to log in, ignore this email.`,
-    html: `
-      <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto;">
-        <h2 style="color: #1e1b4b;">Login verification</h2>
-        <p>Use this code to complete your login:</p>
-        <p style="font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #4f46e5;">${otp}</p>
-        <p style="color: #64748b; font-size: 14px;">This code expires in ${ttlMinutes} minutes.</p>
-        <p style="color: #64748b; font-size: 14px;">If you did not request this, you can ignore this email.</p>
-      </div>
-    `,
-  });
+    `Clothing Shop — Login code`,
+    `Your login code is: ${otp}\n\nExpires in ${ttlMinutes} minutes.`,
+    `<h2>Login OTP</h2><p>Your OTP: <b>${otp}</b></p>`
+  );
 }
 
 /**
- * Signup verification OTP email.
- * @param {string} to
- * @param {string} otp
- * @param {number} [ttlMinutes=10]
+ * Signup OTP
  */
 async function sendVerificationEmail(to, otp, ttlMinutes = 10) {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP is not configured (SMTP_HOST, SMTP_USER, SMTP_PASS)");
-  }
-
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST.trim(),
-    port: Number.isNaN(port) ? 587 : port,
-    secure: port === 465,
-    requireTLS: port !== 465,
-    auth: {
-      user: process.env.SMTP_USER.trim(),
-      pass: smtpPass(),
-    },
-    tls: { rejectUnauthorized: false },
-  });
-
-  const from =
-    process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER.trim();
-  const appName = process.env.APP_NAME || "Clothing Shop";
-
-  await transporter.sendMail({
-    from: `"${appName}" <${from}>`,
+  await sendEmail(
     to,
-    subject: `${appName} — Signup verification code`,
-    text: `Your email verification code is: ${otp}\n\nIt expires in ${ttlMinutes} minutes.\nIf you did not request this, ignore this email.`,
-    html: `
-      <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto;">
-        <h2 style="color: #1e1b4b;">Verify your email</h2>
-        <p>Use this code to verify your email address and complete your signup:</p>
-        <p style="font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #4f46e5;">${otp}</p>
-        <p style="color: #64748b; font-size: 14px;">This code expires in ${ttlMinutes} minutes.</p>
-        <p style="color: #64748b; font-size: 14px;">If you did not sign up for an account, you can ignore this email.</p>
-      </div>
-    `,
-  });
+    `Clothing Shop — Verification code`,
+    `Your verification code is: ${otp}\n\nExpires in ${ttlMinutes} minutes.`,
+    `<h2>Verify Email</h2><p>Your OTP: <b>${otp}</b></p>`
+  );
 }
 
 module.exports = {
