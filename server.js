@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const { sendPasswordResetOtpEmail, sendLoginOtpEmail, sendVerificationEmail, isSmtpConfigured } = require('./mail');
+const { sendPasswordResetOtpEmail, sendLoginOtpEmail, sendVerificationEmail } = require('./mail');
 
 // Initialize Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -528,28 +528,22 @@ app.post("/api/auth/send-verification", async (req, res) => {
     // Since we don't know the exact schema for signup OTPs let's see if we should store it in `password_reset_otps` or `login_otps` or what.
     // Wait, earlier code didn't store it in the DB at all!
 
-    if (isSmtpConfigured()) {
-      try {
-        await sendVerificationEmail(email, otp, ttlMinutes);
-        console.log(`Verification email sent to ${email}`);
-      } catch (mailErr) {
-        console.error("Verification SMTP error:", mailErr);
-        return res.status(500).json({
-          success: false,
-          error: "Could not send verification email. Check SMTP settings.",
-        });
-      }
-    } else {
-      console.warn(`SMTP not configured; verification OTP for ${email}: ${otp} (dev only)`);
+    try {
+      await sendVerificationEmail(email, otp, ttlMinutes);
+      console.log(`Verification email sent to ${email}`);
+    } catch (mailErr) {
+      console.error("Verification SMTP error:", mailErr);
+      return res.status(500).json({
+        success: false,
+        error: "Could not send verification email. Please try again later.",
+      });
     }
 
     const payload = {
       success: true,
-      message: isSmtpConfigured()
-        ? "Verification code sent to your email"
-        : "Verification code created (configure SMTP to send by email)"
+      message: "Verification code sent to your email"
     };
-    if (!isSmtpConfigured() || process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       payload.otp = otp;
     }
     res.json(payload);
@@ -722,35 +716,27 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 
     const ttlMinutes = Math.ceil(PASSWORD_RESET_OTP_TTL_MS / 60000);
 
-    if (isSmtpConfigured()) {
-      try {
-        await sendPasswordResetOtpEmail(email, otp, ttlMinutes);
-        console.log(`Password reset email sent to ${email}`);
-      } catch (mailErr) {
-        console.error("Forgot-password SMTP error:", mailErr);
-        await supabase
-          .from(PASSWORD_RESET_OTPS_TABLE)
-          .delete()
-          .eq("email", email);
-        return res.status(500).json({
-          success: false,
-          error:
-            "Could not send email. Check SMTP settings on the server or try again later.",
-        });
-      }
-    } else {
-      console.warn(
-        `SMTP not set (SMTP_HOST / SMTP_USER / SMTP_PASS); OTP for ${email}: ${otp} (dev only)`
-      );
+    try {
+      await sendPasswordResetOtpEmail(email, otp, ttlMinutes);
+      console.log(`Password reset email sent to ${email}`);
+    } catch (mailErr) {
+      console.error("Forgot-password SMTP error:", mailErr);
+      await supabase
+        .from(PASSWORD_RESET_OTPS_TABLE)
+        .delete()
+        .eq("email", email);
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not send email. Please try again later.",
+      });
     }
 
     const payload = {
       success: true,
-      message: isSmtpConfigured()
-        ? "Verification code sent to your email"
-        : "Verification code created (configure SMTP to send by email)",
+      message: "Verification code sent to your email",
     };
-    if (!isSmtpConfigured() || process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       payload.otp = otp;
     }
     return res.json(payload);
@@ -1210,35 +1196,26 @@ app.post("/api/otp/send-otp", async (req, res) => {
     }
 
     const ttlMinutes = Math.ceil(LOGIN_OTP_TTL_MS / 60000);
-    if (isSmtpConfigured()) {
-      try {
-        await sendLoginOtpEmail(email, otp, ttlMinutes);
-        console.log(`Login OTP email sent to ${email}`);
-      } catch (mailErr) {
-        console.error("Login-otp SMTP error:", mailErr);
-        await supabase
-          .from(LOGIN_OTPS_TABLE)
-          .delete()
-          .eq("email", email);
-        return res.status(500).json({
-          success: false,
-          error:
-            "Could not send email. Check SMTP settings on the server or try again later.",
-        });
-      }
-    } else {
-      console.warn(
-        `SMTP not set (SMTP_HOST / SMTP_USER / SMTP_PASS); login OTP for ${email}: ${otp} (dev only)`
-      );
+    try {
+      await sendLoginOtpEmail(email, otp, ttlMinutes);
+      console.log(`Login OTP email sent to ${email}`);
+    } catch (mailErr) {
+      console.error("Login-otp SMTP error:", mailErr);
+      await supabase
+        .from(LOGIN_OTPS_TABLE)
+        .delete()
+        .eq("email", email);
+      return res.status(500).json({
+        success: false,
+        error: "Could not send email. Please try again later.",
+      });
     }
 
     const payload = {
       success: true,
-      message: isSmtpConfigured()
-        ? "Login code sent to your email"
-        : "Login code created (configure SMTP to send by email)",
+      message: "Login code sent to your email",
     };
-    if (!isSmtpConfigured() || process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production") {
       payload.otp = otp;
     }
     return res.json(payload);
