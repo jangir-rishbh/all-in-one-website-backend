@@ -1,7 +1,17 @@
-const sgMail = require("@sendgrid/mail");
+const nodemailer = require("nodemailer");
 
-// ✅ Set API Key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+/**
+ * Configure Transporter
+ */
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: process.env.SMTP_PORT === "465", // true for port 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 /** Get FROM email safely */
 function getFromEmail() {
@@ -12,18 +22,25 @@ function getFromEmail() {
 }
 
 /**
- * Send Email (common function)
+ * Send Email (common function using Nodemailer)
  */
 async function sendEmail(to, subject, text, html) {
-  const msg = {
-    to,
+  const mailOptions = {
     from: getFromEmail(),
+    to,
     subject,
     text,
     html,
   };
 
-  await sgMail.send(msg);
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully: ", info.messageId);
+    return info;
+  } catch (error) {
+    console.error("Error sending email: ", error);
+    throw error;
+  }
 }
 
 /**
