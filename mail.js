@@ -1,35 +1,7 @@
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 
-/** Clean SMTP password */
-function smtpPass() {
-  const raw = process.env.SMTP_PASS || "";
-  return raw.replace(/\s/g, "");
-}
-
-function isSmtpConfigured() {
-  return Boolean(
-    process.env.SMTP_HOST?.trim() &&
-    process.env.SMTP_USER?.trim() &&
-    smtpPass()
-  );
-}
-
-/** Create transporter (reuse) */
-function createTransporter() {
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST.trim(),
-    port: Number.isNaN(port) ? 587 : port,
-    secure: port === 465,
-    requireTLS: port !== 465,
-    auth: {
-      user: process.env.SMTP_USER.trim(),
-      pass: smtpPass(),
-    },
-    tls: { rejectUnauthorized: false },
-  });
-}
+// ✅ Set API Key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 /** Get FROM email safely */
 function getFromEmail() {
@@ -43,21 +15,15 @@ function getFromEmail() {
  * Send Email (common function)
  */
 async function sendEmail(to, subject, text, html) {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP is not configured");
-  }
-
-  const transporter = createTransporter();
-  const from = getFromEmail();
-  const appName = process.env.APP_NAME || "Clothing Shop";
-
-  await transporter.sendMail({
-    from: `"${appName}" <${from}>`,
+  const msg = {
     to,
+    from: getFromEmail(),
     subject,
     text,
     html,
-  });
+  };
+
+  await sgMail.send(msg);
 }
 
 /**
@@ -100,5 +66,4 @@ module.exports = {
   sendPasswordResetOtpEmail,
   sendLoginOtpEmail,
   sendVerificationEmail,
-  isSmtpConfigured,
 };
