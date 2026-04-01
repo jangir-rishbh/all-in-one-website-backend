@@ -6,7 +6,7 @@ const nodemailer = require("nodemailer");
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_PORT === "465", // true for port 465, false for other ports
+  secure: process.env.SMTP_PORT === "465",
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -114,7 +114,7 @@ function generateOtpEmailHtml({ otp, ttlMinutes, title, description }) {
 async function sendPasswordResetOtpEmail(to, otp, ttlMinutes = 10) {
   const title = "Reset Your Password";
   const description = "Use the verification code below to securely reset your password. For your protection, never share this code with anyone.";
-  
+
   await sendEmail(
     to,
     `Clothing Shop — Password reset code`,
