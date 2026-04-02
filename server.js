@@ -1162,12 +1162,8 @@ app.post("/api/otp/send-otp", async (req, res) => {
       });
     }
 
-    if (!user.email_verified_at) {
-      return res.status(403).json({
-        success: false,
-        error: "Please verify your email before logging in with OTP",
-      });
-    }
+    // Removed the email_verified_at check to allow unverified users to login via OTP
+    // This resolves the 403 Forbidden error and allows OTP to serve as verification.
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + LOGIN_OTP_TTL_MS).toISOString();
@@ -2842,10 +2838,10 @@ app.get("/api/website-info", async (req, res) => {
     res.json({ success: true, websiteInfo });
   } catch (err) {
     console.error("Website info error:", err);
-    res.json({ 
-      success: true, 
-      websiteInfo: { 
-        name: 'Ma Baba Cloth Store', 
+    res.json({
+      success: true,
+      websiteInfo: {
+        name: 'Ma Baba Cloth Store',
         logoUrl: '',
         address: 'Post office gadli, Gadli, District - Jhunjhunu, State - Rajasthan, PIN - 333033',
         phone: '+91 86967 90758',
@@ -2854,7 +2850,7 @@ app.get("/api/website-info", async (req, res) => {
           weekdays: '9:00 AM - 9:00 PM',
           sunday: '10:00 AM - 8:00 PM'
         }
-      } 
+      }
     });
   }
 });
@@ -2909,15 +2905,15 @@ app.put("/api/admin/website-info", adminOnly, async (req, res) => {
 
     const { error: upsertErr } = await supabase
       .from('website_settings')
-      .upsert({ 
-        id: 1, 
-        name: newName, 
-        logo_url: newLogo, 
+      .upsert({
+        id: 1,
+        name: newName,
+        logo_url: newLogo,
         address: newAddress,
         phone: newPhone,
         email: newEmail,
         business_hours: newBusinessHours,
-        updated_at: new Date().toISOString() 
+        updated_at: new Date().toISOString()
       });
 
     if (upsertErr) {
@@ -2925,16 +2921,16 @@ app.put("/api/admin/website-info", adminOnly, async (req, res) => {
       return res.status(500).json({ error: 'Failed to update settings in database' });
     }
 
-    res.json({ 
-      success: true, 
-      websiteInfo: { 
-        name: newName, 
+    res.json({
+      success: true,
+      websiteInfo: {
+        name: newName,
         logoUrl: newLogo,
         address: newAddress,
         phone: newPhone,
         email: newEmail,
         businessHours: newBusinessHours
-      } 
+      }
     });
   } catch (err) {
     console.error("Update website info error:", err);

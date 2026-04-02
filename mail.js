@@ -1,9 +1,17 @@
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
 /**
- * Initialize Resend
+ * Configure Transporter for Brevo SMTP
  */
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.BREVO_USER,
+    pass: process.env.BREVO_PASS,
+  },
+});
 
 /** Get FROM email safely */
 function getFromEmail() {
@@ -14,31 +22,26 @@ function getFromEmail() {
 }
 
 /**
- * Send Email (common function using Resend)
+ * Send Email (common function using Brevo SMTP)
  */
 async function sendEmail(to, subject, text, html) {
+  const mailOptions = {
+    from: getFromEmail(),
+    to,
+    subject,
+    text,
+    html,
+  };
+
   try {
-    const { data, error } = await resend.emails.send({
-      from: getFromEmail(),
-      to: [to],
-      subject,
-      text,
-      html,
-    });
-
-    if (error) {
-      console.error("Resend API error:", error);
-      throw error;
-    }
-
-    console.log("Email sent successfully: ", data.id);
-    return data;
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully: ", info.messageId);
+    return info;
   } catch (error) {
     console.error("Error sending email: ", error);
     throw error;
   }
 }
-
 
 /**
  * Shared OTP Email Template
