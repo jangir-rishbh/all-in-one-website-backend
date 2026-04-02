@@ -1,18 +1,9 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
 /**
- * Configure Transporter
+ * Initialize Resend
  */
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: Number(process.env.SMTP_PORT) === 465,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  family: 4, // 👈 ye line add karo (IMPORTANT FIX)
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /** Get FROM email safely */
 function getFromEmail() {
@@ -23,26 +14,31 @@ function getFromEmail() {
 }
 
 /**
- * Send Email (common function using Nodemailer)
+ * Send Email (common function using Resend)
  */
 async function sendEmail(to, subject, text, html) {
-  const mailOptions = {
-    from: getFromEmail(),
-    to,
-    subject,
-    text,
-    html,
-  };
-
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully: ", info.messageId);
-    return info;
+    const { data, error } = await resend.emails.send({
+      from: getFromEmail(),
+      to: [to],
+      subject,
+      text,
+      html,
+    });
+
+    if (error) {
+      console.error("Resend API error:", error);
+      throw error;
+    }
+
+    console.log("Email sent successfully: ", data.id);
+    return data;
   } catch (error) {
     console.error("Error sending email: ", error);
     throw error;
   }
 }
+
 
 /**
  * Shared OTP Email Template

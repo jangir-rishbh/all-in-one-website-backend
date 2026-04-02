@@ -532,7 +532,7 @@ app.post("/api/auth/send-verification", async (req, res) => {
       await sendVerificationEmail(email, otp, ttlMinutes);
       console.log(`Verification email sent to ${email}`);
     } catch (mailErr) {
-      console.error("Verification SMTP error:", mailErr);
+      console.error("Verification email error:", mailErr);
       return res.status(500).json({
         success: false,
         error: "Could not send verification email. Please try again later.",
@@ -720,7 +720,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       await sendPasswordResetOtpEmail(email, otp, ttlMinutes);
       console.log(`Password reset email sent to ${email}`);
     } catch (mailErr) {
-      console.error("Forgot-password SMTP error:", mailErr);
+      console.error("Forgot-password email error:", mailErr);
       await supabase
         .from(PASSWORD_RESET_OTPS_TABLE)
         .delete()
@@ -1200,7 +1200,7 @@ app.post("/api/otp/send-otp", async (req, res) => {
       await sendLoginOtpEmail(email, otp, ttlMinutes);
       console.log(`Login OTP email sent to ${email}`);
     } catch (mailErr) {
-      console.error("Login-otp SMTP error:", mailErr);
+      console.error("Login-otp email error:", mailErr);
       await supabase
         .from(LOGIN_OTPS_TABLE)
         .delete()
