@@ -5,8 +5,8 @@ const nodemailer = require("nodemailer");
  */
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
-  port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
-  secure: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) === 465 : true, // true for 465, false for 587/2525
+  port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 2525,
+  secure: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) === 465 : false, // false for 2525, Nodemailer will use STARTTLS automatically
   auth: {
     user: process.env.BREVO_USER,
     pass: process.env.BREVO_PASS,
