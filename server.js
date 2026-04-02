@@ -2810,16 +2810,16 @@ app.post("/api/admin/replies", async (req, res) => {
  * @swagger
  * /api/website-info:
  *   get:
- *     summary: Get public website identity info (name, logo)
+ *     summary: Get public website identity info (name, logo, contact, hours)
  *     responses:
  *       200:
- *         description: Website name and logo info
- */
+ *         description: Website name, logo, contact info and business hours
+ *  */
 app.get("/api/website-info", async (req, res) => {
   try {
     const { data: settings, error } = await supabase
       .from('website_settings')
-      .select('name, logo_url')
+      .select('name, logo_url, address, phone, email, business_hours')
       .eq('id', 1)
       .maybeSingle();
 
@@ -2829,13 +2829,33 @@ app.get("/api/website-info", async (req, res) => {
 
     const websiteInfo = {
       name: settings?.name || 'Ma Baba Cloth Store',
-      logoUrl: settings?.logo_url || ''
+      logoUrl: settings?.logo_url || '',
+      address: settings?.address || 'Post office gadli, Gadli, District - Jhunjhunu, State - Rajasthan, PIN - 333033',
+      phone: settings?.phone || '+91 86967 90758',
+      email: settings?.email || 'manishjangir348@gmail.com',
+      businessHours: settings?.business_hours || {
+        weekdays: '9:00 AM - 9:00 PM',
+        sunday: '10:00 AM - 8:00 PM'
+      }
     };
 
     res.json({ success: true, websiteInfo });
   } catch (err) {
     console.error("Website info error:", err);
-    res.json({ success: true, websiteInfo: { name: 'Ma Baba Cloth Store', logoUrl: '' } });
+    res.json({ 
+      success: true, 
+      websiteInfo: { 
+        name: 'Ma Baba Cloth Store', 
+        logoUrl: '',
+        address: 'Post office gadli, Gadli, District - Jhunjhunu, State - Rajasthan, PIN - 333033',
+        phone: '+91 86967 90758',
+        email: 'manishjangir348@gmail.com',
+        businessHours: {
+          weekdays: '9:00 AM - 9:00 PM',
+          sunday: '10:00 AM - 8:00 PM'
+        }
+      } 
+    });
   }
 });
 
@@ -2843,7 +2863,7 @@ app.get("/api/website-info", async (req, res) => {
  * @swagger
  * /api/admin/website-info:
  *   put:
- *     summary: Update website name and logo url (Admin only)
+ *     summary: Update website name, logo, contact and hours (Admin only)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -2857,34 +2877,65 @@ app.get("/api/website-info", async (req, res) => {
  *                 type: string
  *               logoUrl:
  *                 type: string
+ *               address:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               businessHours:
+ *                 type: object
  *     responses:
  *       200:
  *         description: Website info updated
- */
+ *  */
 app.put("/api/admin/website-info", adminOnly, async (req, res) => {
   try {
-    const { name, logoUrl } = req.body;
+    const { name, logoUrl, address, phone, email, businessHours } = req.body;
 
     // Fetch existing first
     const { data: current, error: getErr } = await supabase
       .from('website_settings')
-      .select('name, logo_url')
+      .select('name, logo_url, address, phone, email, business_hours')
       .eq('id', 1)
       .maybeSingle();
 
     const newName = name || current?.name || 'Ma Baba Cloth Store';
     const newLogo = typeof logoUrl === 'string' ? logoUrl : (current?.logo_url || '');
+    const newAddress = address || current?.address || '';
+    const newPhone = phone || current?.phone || '';
+    const newEmail = email || current?.email || '';
+    const newBusinessHours = businessHours || current?.business_hours || {};
 
     const { error: upsertErr } = await supabase
       .from('website_settings')
-      .upsert({ id: 1, name: newName, logo_url: newLogo, updated_at: new Date().toISOString() });
+      .upsert({ 
+        id: 1, 
+        name: newName, 
+        logo_url: newLogo, 
+        address: newAddress,
+        phone: newPhone,
+        email: newEmail,
+        business_hours: newBusinessHours,
+        updated_at: new Date().toISOString() 
+      });
 
     if (upsertErr) {
       console.error("Update website info error:", upsertErr);
       return res.status(500).json({ error: 'Failed to update settings in database' });
     }
 
-    res.json({ success: true, websiteInfo: { name: newName, logoUrl: newLogo } });
+    res.json({ 
+      success: true, 
+      websiteInfo: { 
+        name: newName, 
+        logoUrl: newLogo,
+        address: newAddress,
+        phone: newPhone,
+        email: newEmail,
+        businessHours: newBusinessHours
+      } 
+    });
   } catch (err) {
     console.error("Update website info error:", err);
     res.status(500).json({ error: 'Internal server error' });
@@ -2920,18 +2971,18 @@ app.post("/api/admin/website-info/upload-logo", adminOnly, upload.single('file')
     const base64 = req.file.buffer.toString('base64');
     const image = `data:${mime};base64,${base64}`;
 
-    // Get existing name to preserve it during upsert
+    // Get existing to preserve other fields during upsert
     const { data: current } = await supabase
       .from('website_settings')
-      .select('name')
+      .select('*')
       .eq('id', 1)
       .maybeSingle();
 
     const { error: upsertErr } = await supabase
       .from('website_settings')
       .upsert({
+        ...current,
         id: 1,
-        name: current?.name || 'Ma Baba Cloth Store',
         logo_url: image,
         updated_at: new Date().toISOString()
       });
