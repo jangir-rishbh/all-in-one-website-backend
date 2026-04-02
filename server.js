@@ -42,7 +42,7 @@ function loadAdminStore() {
         overrides: [],
         customProducts: [],
         replies: [],
-        websiteInfo: { name: 'Ma Baba Cloth Store', logoUrl: '' }
+        // Removed websiteInfo (migrated to Supabase)
       };
     }
     const raw = fs.readFileSync(ADMIN_STORE_PATH, 'utf8');
@@ -52,7 +52,7 @@ function loadAdminStore() {
       overrides: Array.isArray(parsed.overrides) ? parsed.overrides : [],
       customProducts: Array.isArray(parsed.customProducts) ? parsed.customProducts : [],
       replies: Array.isArray(parsed.replies) ? parsed.replies : [],
-      websiteInfo: parsed.websiteInfo || { name: 'Ma Baba Cloth Store', logoUrl: '' }
+      // Removed websiteInfo (migrated to Supabase)
     };
   } catch {
     return {
@@ -60,7 +60,7 @@ function loadAdminStore() {
       overrides: [],
       customProducts: [],
       replies: [],
-      websiteInfo: { name: 'Ma Baba Cloth Store', logoUrl: '' }
+      // Removed websiteInfo (migrated to Supabase)
     };
   }
 }
